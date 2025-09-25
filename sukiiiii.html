@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUKI - Aplikasi Pemesanan Mobil</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 420px;
+            padding: 1.5rem;
+            margin: auto;
+        }
+        input, select, button {
+            transition: all 0.2s ease-in-out;
+            border-radius: 0.5rem;
+        }
+        .form-group label {
+            font-weight: 500;
+        }
+        .car-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+    <!-- Konten Utama Aplikasi -->
+    <div class="container bg-white rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-700">SUKI</h1>
+        <p class="text-center text-sm mb-8 text-gray-500">Pesan mobil kantor dengan mudah.</p>
+
+        <!-- Bagian Notifikasi Status Pemesanan -->
+        <div id="status-notification" class="hidden p-4 rounded-lg mb-6 text-center transition-all duration-300"></div>
+
+        <!-- Daftar Mobil yang Tersedia -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">Status Ketersediaan Mobil</h2>
+            <div id="car-list" class="space-y-2">
+                <!-- Konten daftar mobil akan diisi oleh JavaScript -->
+            </div>
+        </div>
+
+        <!-- Daftar Pemesanan Aktif -->
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">Daftar Pemesanan Aktif</h2>
+            <div id="active-bookings" class="space-y-2">
+                <!-- Konten daftar pemesanan aktif akan diisi oleh JavaScript -->
+                <p class="text-center text-gray-400">Belum ada pemesanan aktif.</p>
+            </div>
+        </div>
+
+        <!-- Form Pemesanan -->
+        <div id="booking-form" class="space-y-6">
+            <div class="form-group">
+                <label for="car-type" class="block text-gray-700 mb-2">Jenis Mobil</label>
+                <select id="car-type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="" disabled selected>Pilih jenis mobil</option>
+                    <option value="sedan">Sedan</option>
+                    <option value="mpv">MPV</option>
+                    <option value="suv">SUV</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="block text-gray-700 mb-2">Waktu Pemesanan</label>
+                <div class="flex items-center space-x-4">
+                    <input type="time" id="start-time" class="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    <span class="text-gray-500">-</span>
+                    <input type="time" id="end-time" class="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="block text-gray-700 mb-2">Nama pengguna Kendaraan</label>
+                <div id="booker-names" class="space-y-2">
+                    <input type="text" class="booker-name w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Masukan Nama Pengguna Kendaraan" required>
+                </div>
+                <button onclick="addBooker()" class="mt-2 w-full text-indigo-600 font-semibold py-2 rounded-lg border-2 border-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors duration-200">
+                    + Tambah Nama Pengguna Kendaraan
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label for="notes" class="block text-gray-700 mb-2">Catatan Tambahan</label>
+                <textarea id="notes" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Misalnya: Kebutuhan meeting, perjalanan dinas"></textarea>
+            </div>
+
+            <button id="submit-button" onclick="checkAvailability()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
+                Cek Ketersediaan & Pesan
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Pesan (digunakan untuk validasi) -->
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-80">
+            <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="modal-text" class="text-gray-700 mb-4"></p>
+            <button onclick="closeModal()" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+
+    <script>
+        // Data mobil yang tersedia
+        const allCars = [
+            { id: 'sedan-1', type: 'sedan', isAvailable: true },
+            { id: 'sedan-2', type: 'sedan', isAvailable: true },
+            { id: 'mpv-1', type: 'mpv', isAvailable: true },
+            { id: 'suv-1', type: 'suv', isAvailable: true },
+            { id: 'suv-2', type: 'suv', isAvailable: true },
+        ];
+
+        // Array untuk menyimpan data pemesanan
+        let bookings = [];
+        let bookerCount = 1;
+
+        // Fungsi untuk menambahkan input nama pemesan baru
+        function addBooker() {
+            bookerCount++;
+            const bookerNamesDiv = document.getElementById('booker-names');
+            const newDiv = document.createElement('div');
+            newDiv.classList.add('flex', 'items-center', 'space-x-2', 'booker-input-group');
+            newDiv.innerHTML = `
+                <input type="text" class="booker-name w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Masukan Nama Pengguna Kendaraan" required>
+                <button onclick="removeBooker(this)" class="bg-red-500 text-white font-bold py-1 px-3 rounded-lg hover:bg-red-600 transition-colors duration-200">-</button>
+            `;
+            bookerNamesDiv.appendChild(newDiv);
+        }
+
+        // Fungsi untuk menghapus input nama pemesan
+        function removeBooker(button) {
+            const inputGroup = button.parentNode;
+            inputGroup.remove();
+        }
+        
+        // Fungsi untuk menampilkan daftar mobil dan statusnya
+        function renderCarList() {
+            const carListDiv = document.getElementById('car-list');
+            carListDiv.innerHTML = ''; // Kosongkan daftar sebelum merender ulang
+
+            allCars.forEach(car => {
+                const statusClass = car.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = car.isAvailable ? 'Tersedia' : 'Sedang digunakan';
+                
+                const carItem = document.createElement('div');
+                carItem.className = `p-3 rounded-lg flex justify-between items-center ${statusClass}`;
+                carItem.innerHTML = `
+                    <span class="font-medium">${getCarName(car.type)} (${car.id})</span>
+                    <span class="font-bold">${statusText}</span>
+                `;
+                carListDiv.appendChild(carItem);
+            });
+        }
+        
+        // Fungsi untuk menampilkan daftar pemesanan aktif
+        function renderActiveBookings() {
+            const activeBookingsDiv = document.getElementById('active-bookings');
+            activeBookingsDiv.innerHTML = '';
+
+            if (bookings.length === 0) {
+                activeBookingsDiv.innerHTML = '<p class="text-center text-gray-400">Belum ada pemesanan aktif.</p>';
+                return;
+            }
+
+            bookings.forEach(booking => {
+                const bookingItem = document.createElement('div');
+                bookingItem.className = `p-3 rounded-lg bg-gray-100 border-l-4 border-indigo-500`;
+                bookingItem.innerHTML = `
+                    <p class="font-semibold text-indigo-800">${booking.bookers.join(', ')}</p>
+                    <p class="text-sm text-gray-600">Mobil: ${getCarName(booking.carType)} (${booking.carId})</p>
+                    <p class="text-sm text-gray-600">Waktu: ${booking.startTime} - ${booking.endTime}</p>
+                `;
+                activeBookingsDiv.appendChild(bookingItem);
+            });
+        }
+        
+        // Fungsi untuk mengecek pemesanan yang sudah selesai
+        function checkExpiredBookings() {
+            const now = new Date();
+            const initialBookingCount = bookings.length;
+            
+            // Filter pemesanan yang sudah selesai
+            const activeBookings = bookings.filter(booking => {
+                const [endHour, endMinute] = booking.endTime.split(':');
+                const endTimeDate = new Date();
+                // Set the date to today's date and the time to the end time
+                endTimeDate.setHours(parseInt(endHour, 10), parseInt(endMinute, 10), 0, 0);
+
+                if (endTimeDate < now) {
+                    // Booking sudah selesai, kembalikan mobil menjadi tersedia
+                    const car = allCars.find(c => c.id === booking.carId);
+                    if (car) {
+                        car.isAvailable = true;
+                    }
+                    return false; // Hapus pemesanan ini dari daftar
+                }
+                return true; // Pertahankan pemesanan ini di daftar
+            });
+
+            // Perbarui array bookings
+            bookings = activeBookings;
+
+            // Jika ada pemesanan yang selesai, perbarui tampilan
+            if (bookings.length !== initialBookingCount) {
+                renderCarList();
+                renderActiveBookings();
+            }
+        }
+
+        // Fungsi untuk mengecek ketersediaan mobil dan membuat pemesanan
+        function checkAvailability() {
+            const carType = document.getElementById('car-type').value;
+            const startTime = document.getElementById('start-time').value;
+            const endTime = document.getElementById('end-time').value;
+            const notes = document.getElementById('notes').value;
+            const bookerInputs = document.querySelectorAll('.booker-name');
+            const bookers = Array.from(bookerInputs).map(input => input.value.trim()).filter(name => name.length > 0);
+
+            // Validasi input
+            if (!carType || !startTime || !endTime || bookers.length === 0) {
+                showMessage('Peringatan!', 'Harap lengkapi semua data: jenis mobil, waktu pemesanan, dan minimal satu nama pengguna.', 'bg-yellow-100 text-yellow-800');
+                return;
+            }
+
+            // Validasi waktu pemesanan
+            if (endTime <= startTime) {
+                showMessage('Peringatan!', 'Waktu selesai harus setelah waktu mulai.', 'bg-yellow-100 text-yellow-800');
+                return;
+            }
+
+            // Tampilkan loading overlay
+            document.getElementById('loading-overlay').classList.remove('hidden');
+
+            // Simulasikan pengecekan ketersediaan mobil
+            setTimeout(() => {
+                const availableCar = allCars.find(car => car.type === carType && car.isAvailable);
+                let isAvailable = false;
+                let carId = null;
+
+                if (availableCar) {
+                    isAvailable = true;
+                    carId = availableCar.id;
+                    // Tandai mobil sebagai tidak tersedia
+                    availableCar.isAvailable = false;
+                }
+
+                document.getElementById('loading-overlay').classList.add('hidden');
+
+                if (isAvailable) {
+                    const newBooking = {
+                        id: bookings.length + 1,
+                        carType: carType,
+                        carId: carId,
+                        startTime: startTime,
+                        endTime: endTime,
+                        bookers: bookers,
+                        notes: notes,
+                    };
+                    bookings.push(newBooking);
+                    displayStatusNotification(newBooking, true);
+                    renderActiveBookings();
+                } else {
+                    displayStatusNotification({ carType: carType }, false);
+                }
+                
+                // Perbarui daftar mobil setelah pemesanan
+                renderCarList();
+
+            }, 2000); // Simulasi penundaan 2 detik
+        }
+        
+        // Fungsi untuk menampilkan notifikasi status pemesanan
+        function displayStatusNotification(booking, success) {
+            const form = document.getElementById('booking-form');
+            const notification = document.getElementById('status-notification');
+
+            form.classList.add('hidden');
+            notification.classList.remove('hidden');
+
+            const statusClass = success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+            const statusText = success ? 'Berhasil! Mobil tersedia untuk pemesanan Anda.' : 'Mohon maaf, mobil sedang digunakan.';
+            const carInfo = success ? `<li><strong>ID Mobil:</strong> ${booking.carId}</li>` : '';
+
+            notification.className = `p-4 rounded-lg mb-6 text-center transition-all duration-300 ${statusClass}`;
+            notification.innerHTML = `
+                <p class="font-bold text-lg mb-2">${statusText}</p>
+                <ul class="mt-4 text-left list-disc list-inside">
+                    <li><strong>Jenis Mobil:</strong> ${getCarName(booking.carType)}</li>
+                    ${success ? `<li><strong>Waktu Pemesanan:</strong> ${booking.startTime} - ${booking.endTime}</li>` : ''}
+                    ${success ? `<li><strong>Nama pengguna Kendaraan:</strong> ${booking.bookers.join(', ')}</li>` : ''}
+                    ${carInfo}
+                </ul>
+                <button onclick="hideStatusNotificationAndShowForm()" class="mt-4 w-full text-indigo-600 font-semibold py-2 rounded-lg border-2 border-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors duration-200">
+                    Buat Pesanan Baru
+                </button>
+            `;
+            
+            setTimeout(() => {
+                hideStatusNotificationAndShowForm();
+            }, 5000);
+        }
+
+        // Fungsi untuk menyembunyikan notifikasi dan menampilkan formulir kembali
+        function hideStatusNotificationAndShowForm() {
+            document.getElementById('booking-form').classList.remove('hidden');
+            document.getElementById('status-notification').classList.add('hidden');
+            document.getElementById('car-type').value = '';
+            document.getElementById('start-time').value = '';
+            document.getElementById('end-time').value = '';
+            document.getElementById('notes').value = '';
+            const bookerNamesDiv = document.getElementById('booker-names');
+            bookerNamesDiv.innerHTML = `<input type="text" class="booker-name w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Masukan Nama Pengguna Kendaraan" required>`;
+            bookerCount = 1;
+        }
+
+        // Helper function untuk mendapatkan nama mobil yang lebih mudah dibaca
+        function getCarName(type) {
+            switch(type) {
+                case 'sedan': return 'Sedan';
+                case 'mpv': return 'MPV';
+                case 'suv': return 'SUV';
+                default: return 'Tidak Diketahui';
+            }
+        }
+
+        // Fungsi untuk menampilkan pesan pop-up (modal)
+        function showMessage(title, text, styleClass) {
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalText = document.getElementById('modal-text');
+
+            modalTitle.textContent = title;
+            modalText.textContent = text;
+            modal.classList.remove('hidden');
+        }
+
+        // Fungsi untuk menutup modal
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        // Panggil fungsi renderCarList dan renderActiveBookings saat halaman dimuat
+        window.onload = function() {
+            renderCarList();
+            renderActiveBookings();
+            // Cek pemesanan yang sudah selesai setiap 30 detik
+            setInterval(checkExpiredBookings, 30000);
+        };
+    </script>
+</body>
+</html>
